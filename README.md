@@ -20,7 +20,8 @@ or any custom model with full IDE integration.
 - **Multi-Model Support** — Configure multiple backends in `config.yaml` and switch via JetBrains' deployment selector.
 - **Streaming & Non-Streaming** — Handles both SSE streaming and standard chat completions.
 - **Graceful Error Handling** — Clean disconnection on client interrupt, Azure-format error responses.
-- **Debug Mode** — Toggle `general_settings.debug` to log full request bodies for troubleshooting.
+- **Debug Mode** — Toggle `general.debug` to log full request bodies for troubleshooting.
+- **Access Control** — Set `general.api-key` to require an API key on all proxy requests.
 - **Zero Dependencies Beyond pip** — Only `aiohttp`, `litellm`, and `pyyaml`.
 
 ## Quick Start
@@ -60,10 +61,11 @@ chmod +x .init.sh
 Edit `config.yaml` to define your backend models:
 
 ```yaml
-general_settings:
+general:
   port: 4000
   timeout: 120
   debug: false          # set true for request body logging
+  api-key: ""           # optional — set to require an api-key header on all requests
 
 models:
   - model_name: deepseek-v4-pro
@@ -102,14 +104,14 @@ The proxy starts at `http://localhost:4000`.
 4. Under the **Azure** provider section, click **+ Add models**.
 5. Fill in the form for each model:
 
-| Field              | Value                                                                 |
-|--------------------|-----------------------------------------------------------------------|
-| **Model ID**       | Exact deployment name from `config.yaml` (e.g. `deepseek-v4-pro`)     |
-| **Deployment URL** | `http://{host}:{port}/openai/deployments/{model-id}/chat/completions` |
-| **API key**        | Anything, we don't use it.                                            |
-| **Model name**     | The display name you like.                                            |
-| **Toool**          | **Check** (otherwise "agent" mode is not supported)                   |
-| **Vision**         | **Uncheck** (unless your backend supports image inputs)               |
+| Field              | Value                                                                  |
+|--------------------|------------------------------------------------------------------------|
+| **Model ID**       | Exact deployment name from `config.yaml` (e.g. `deepseek-v4-pro`)      |
+| **Deployment URL** | `http://{host}:{port}/openai/deployments/{model-id}/chat/completions`  |
+| **API key**        | Any value — unless `general.api-key` is set, then must match that key. |
+| **Model name**     | The display name you like.                                             |
+| **Toool**          | **Check** (otherwise "agent" mode is not supported)                    |
+| **Vision**         | **Uncheck** (unless your backend supports image inputs)                |
 
 > [!TIP]
 > **Deployment URL** must contain the same model ID as the **Model ID** field.  
@@ -124,9 +126,10 @@ After adding, the model will appear in your Copilot Chat model selector.
 
 | Field                                      | Type | Description                                              |
 |--------------------------------------------|------|----------------------------------------------------------|
-| `general_settings.port`                    | int  | Proxy listen port (default: `4000`)                      |
-| `general_settings.timeout`                 | int  | Per-request timeout in seconds (default: `120`)          |
-| `general_settings.debug`                   | bool | Log full POST request bodies when `true`                 |
+| `general.port`                             | int  | Proxy listen port (default: `4000`)                      |
+| `general.timeout`                          | int  | Per-request timeout in seconds (default: `120`)          |
+| `general.debug`                            | bool | Log full POST request bodies when `true`                 |
+| `general.api-key`                          | str  | Optional — require this `api-key` header on all requests |
 | `models[].model_name`                      | str  | Deployment name shown in JetBrains                       |
 | `models[].litellm_params.model`            | str  | LiteLLM model identifier (e.g. `openai/deepseek-v4-pro`) |
 | `models[].litellm_params.api_base`         | str  | Backend API base URL                                     |

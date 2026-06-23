@@ -135,8 +135,8 @@ def _resolve(value: str) -> str:
     return str(value) if value else ""
 
 
-def load_config(path: str | Path) -> tuple[dict[str, ProxyConfig], int, int, bool]:
-    """Parse config.yaml -> {model_name: ProxyConfig} + port + timeout + debug."""
+def load_config(path: str | Path) -> tuple[dict[str, ProxyConfig], int, int, bool, str]:
+    """Parse config.yaml -> {model_name: ProxyConfig} + port + timeout + debug + proxy_api_key."""
     with open(path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
@@ -148,12 +148,13 @@ def load_config(path: str | Path) -> tuple[dict[str, ProxyConfig], int, int, boo
         params = entry.get("litellm_params", entry.get("params", entry))
         models[name] = ProxyConfig(name, params if isinstance(params, dict) else {})
 
-    settings = raw.get("general_settings", raw.get("settings", {}))
+    settings = raw.get("general", raw.get("general_settings", raw.get("settings", {})))
     port = int(settings.get("port", raw.get("port", 4000)))
     timeout = int(settings.get("timeout", raw.get("request_timeout", 120)))
     debug = bool(settings.get("debug", False))
+    proxy_api_key: str = str(settings.get("api-key", "")).strip()
 
-    return models, port, timeout, debug
+    return models, port, timeout, debug, proxy_api_key
 
 
 # ======================================================================
@@ -603,8 +604,18 @@ async def handle_catch_all(request: web.Request) -> web.Response:
 
 @web.middleware
 async def logging_middleware(request: web.Request, handler: Any) -> web.StreamResponse:
-    """Log every request before handling."""
+    """Log every request and enforce proxy-level api-key if configured."""
     log_request(request.method, request.path_qs, dict(request.headers))
+
+    # -- proxy-level api-key check --
+    if PROXY_API_KEY:
+        client_key = request.headers.get("api-key", "")
+        if client_key != PROXY_API_KEY:
+            log("🔐", "REJECTED  {}  {}  —  bad or missing api-key", request.method, request.path_qs)
+            return web.json_response(
+                to_azure_error("Invalid or missing api-key", code="401"),
+                status=401)
+
     try:
         return await handler(request)
     except web.HTTPException:
@@ -622,6 +633,7 @@ PROXY_NAME = "copilot-azure-proxy"
 MODELS: dict[str, ProxyConfig] = {}
 DEFAULT_TIMEOUT = 120
 DEBUG = False
+PROXY_API_KEY: str = ""
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -635,7 +647,7 @@ def main(argv: list[str] | None = None) -> None:
                         help="Bind address (default: 0.0.0.0)")
     args = parser.parse_args(argv)
 
-    global MODELS, DEFAULT_TIMEOUT, DEBUG
+    global MODELS, DEFAULT_TIMEOUT, DEBUG, PROXY_API_KEY
     config_path = Path(args.config)
     if not config_path.is_absolute():
         config_path = Path(__file__).parent / config_path
@@ -643,7 +655,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"ERROR: Config file not found: {config_path}", file=sys.stderr)
         sys.exit(1)
 
-    MODELS, config_port, DEFAULT_TIMEOUT, DEBUG = load_config(str(config_path))
+    MODELS, config_port, DEFAULT_TIMEOUT, DEBUG, PROXY_API_KEY = load_config(str(config_path))
     port = args.port or config_port or 4000
 
     if not MODELS:
@@ -651,12 +663,17 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     log("📋", "config  : {}", config_path)
+    if PROXY_API_KEY:
+        log("🔑", "apikey : *** ({} chars)", len(PROXY_API_KEY))
+    else:
+        log("🔓", "apikey : <none> —  accepting all keys")
     log("🚀", "models  : {}", ", ".join(MODELS.keys()))
     for n, c in MODELS.items():
         if c.base_model:
             log("🏷️", "   {}  →  \"{}\" (base_model)", n, c.base_model)
         else:
             log("🏷️", "   {}  →  \"{}\"", n, n)
+
     log("🌐", "listen  : http://{}:{}", args.host, port)
 
     app = web.Application(middlewares=[logging_middleware])

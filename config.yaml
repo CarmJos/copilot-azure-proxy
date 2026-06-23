@@ -7,10 +7,11 @@
 
 
 # ── Global settings ──────────────────────────────────────────────────────────
-general_settings:
+general:
   port: 4000
   timeout: 120      # seconds (per-request fallback)
   debug: false      # set true to log POST request bodies and full REQ details
+  api-key: ""       # optional — if set, all requests must carry this api-key header
 
 models:
   - model_name: deepseek-v4-pro
