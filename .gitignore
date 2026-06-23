@@ -1,0 +1,14 @@
+.idea/
+
+# Python
+.venv
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+

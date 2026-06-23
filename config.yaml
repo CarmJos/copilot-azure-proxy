@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  copilot-azure-proxy  —  configuration
+# ─────────────────────────────────────────────────────────────────────────────
+#  Each model under "models" maps a JetBrains "Deployment name" to a backend.
+#  You can use raw values or os.environ/KEY to pull from environment variables.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# ── Global settings ──────────────────────────────────────────────────────────
+general_settings:
+  port: 4000
+  timeout: 120      # seconds (per-request fallback)
+  debug: false      # set true to log POST request bodies and full REQ details
+
+models:
+  - model_name: deepseek-v4-pro
+    litellm_params:
+      provider: openai
+      model: openai/deepseek-v4-pro
+      api_base: https://api.deepseek.com
+      api_key: sk-YOUR-TOKEN
+      supports_vision: false
+      supports_function_calling: true
+      supports_reasoning: true
+      supports_tool_choice: true
+      max_tokens: 384000
+      max_input_tokens: 1000000
+      max_output_tokens: 384000
+      timeout: 180
+
+  - model_name: deepseek-v4-flash
+    litellm_params:
+      provider: openai
+      model: openai/deepseek-v4-flash
+      api_base: https://api.deepseek.com
+      api_key: sk-YOUR-TOKEN
+      supports_vision: false
+      supports_function_calling: true
+      supports_reasoning: true
+      supports_tool_choice: true
+      max_tokens: 384000
+      max_input_tokens: 1000000
+      max_output_tokens: 384000
+      timeout: 120
+
+  - model_name: mimo-v2.5-pro
+    litellm_params:
+      model: openai/mimo-v2.5-pro
+      api_base: https://api.xiaomimimo.com/v1
+      api_key: sk-YOUR-TOKEN
+      supports_vision: false
+      max_tokens: 128000
+      max_input_tokens: 1000000
+      max_output_tokens: 128000
+
+  - model_name: mimo-v2.5
+    litellm_params:
+      model: openai/mimo-v2.5
+      api_base: https://api.xiaomimimo.com/v1
+      api_key: sk-YOUR-TOKEN
+      supports_vision: true
+      max_tokens: 128000
+      max_input_tokens: 1000000
+      max_output_tokens: 128000
