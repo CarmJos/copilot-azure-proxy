@@ -42,25 +42,25 @@ _LOG_BUF: list[str] = []
 
 
 def log(emoji: str, msg: str, *args: object) -> None:
-    line = f" {emoji} | {msg.format(*args)}"
+    line: str = f" {emoji} | {msg.format(*args)}"
     print(line, flush=True)
     _LOG_BUF.append(line)
     if len(_LOG_BUF) > 5000:
         _LOG_BUF[:1000] = []
 
 
-def log_request(method: str, path_qs: str, headers: dict) -> None:
+def log_request(method: str, path_qs: str, headers: dict[str, Any]) -> None:
     """Log ALL request details for debugging purposes."""
     global DEBUG
     # When debug is off, only log GET requests (skip POST request bodies)
     if not DEBUG and method.upper() == "POST":
         return
-    ct = headers.get("Content-Type", headers.get("content-type", "-"))
-    auth = "YES" if "authorization" in headers or "api-key" in headers else "NO"
+    ct: str = headers.get("Content-Type", headers.get("content-type", "-"))  # type: ignore[assignment]
+    auth: str = "YES" if "authorization" in headers or "api-key" in headers else "NO"
     # Extract api-version from query string
-    api_ver = "-"
+    api_ver: str = "-"
     if "?" in path_qs:
-        qp = path_qs.split("?", 1)[1]
+        qp: str = path_qs.split("?", 1)[1]
         for pair in qp.split("&"):
             if pair.startswith("api-version="):
                 api_ver = pair.split("=", 1)[1]
@@ -84,22 +84,22 @@ class ProxyConfig:
         "timeout", "extra_headers", "base_model",
     )
 
-    def __init__(self, name: str, params: dict) -> None:
-        self.name = name
-        self.provider: str = params.get("provider", "openai")
-        self.model: str = params.get("model", name)
+    def __init__(self, name: str, params: dict[str, Any]) -> None:
+        self.name: str = name
+        self.provider: str = params.get("provider", "openai")  # type: ignore[assignment]
+        self.model: str = params.get("model", name)  # type: ignore[assignment]
         self.api_base: str = _resolve(params.get("api_base", ""))
         self.api_key: str = _resolve(params.get("api_key", ""))
-        self.supports_vision: bool = params.get("supports_vision", False)
-        self.supports_function_calling: bool = params.get("supports_function_calling", False)
-        self.supports_reasoning: bool = params.get("supports_reasoning", False)
-        self.supports_tool_choice: bool = params.get("supports_tool_choice", False)
+        self.supports_vision: bool = params.get("supports_vision", False)  # type: ignore[assignment]
+        self.supports_function_calling: bool = params.get("supports_function_calling", False)  # type: ignore[assignment]
+        self.supports_reasoning: bool = params.get("supports_reasoning", False)  # type: ignore[assignment]
+        self.supports_tool_choice: bool = params.get("supports_tool_choice", False)  # type: ignore[assignment]
         self.temperature: float | None = params.get("temperature")
         self.max_tokens: int | None = params.get("max_tokens")
         self.max_input_tokens: int | None = params.get("max_input_tokens")
         self.max_output_tokens: int | None = params.get("max_output_tokens")
-        self.timeout: int = params.get("timeout", 120)
-        self.extra_headers: dict = params.get("extra_headers", {}) or {}
+        self.timeout: int = params.get("timeout", 120)  # type: ignore[assignment]
+        self.extra_headers: dict[str, str] = params.get("extra_headers", {}) or {}  # type: ignore[assignment]
         # base_model: the Azure model name to report in responses (e.g. "gpt-4o").
         # If set, JetBrains may recognise this model and use its known context window.
         # If unset, falls back to the deployment name.
@@ -112,7 +112,7 @@ class ProxyConfig:
         """
         return self.base_model or self.name
 
-    def to_kwargs(self, extra: dict | None = None) -> dict:
+    def to_kwargs(self, extra: dict[str, Any] | None = None) -> dict[str, Any]:
         k: dict[str, Any] = {"model": self.model, "timeout": self.timeout}
         if self.api_base:
             k["api_base"] = self.api_base
@@ -143,20 +143,21 @@ def _resolve(value: str) -> str:
 def load_config(path: str | Path) -> tuple[dict[str, ProxyConfig], int, int, bool, str]:
     """Parse config.yaml -> {model_name: ProxyConfig} + port + timeout + debug + proxy_api_key."""
     with open(path, "r", encoding="utf-8") as f:
-        raw = yaml.safe_load(f)
+        raw: Any = yaml.safe_load(f)
 
     models: dict[str, ProxyConfig] = {}
     for entry in raw.get("models", raw.get("model_list", [])):
-        name = entry.get("model_name", entry.get("name", ""))
+        name: str = entry.get("model_name", entry.get("name", ""))
         if not name:
             continue
-        params = entry.get("litellm_params", entry.get("params", entry))
+        params: dict[str, Any] = entry.get("litellm_params", entry.get("params", entry)) if isinstance(entry.get("litellm_params", entry.get("params", entry)), dict) else {}
         models[name] = ProxyConfig(name, params if isinstance(params, dict) else {})
 
-    settings = raw.get("general", raw.get("general_settings", raw.get("settings", {})))
-    port = int(settings.get("port", raw.get("port", 4000)))
-    timeout = int(settings.get("timeout", raw.get("request_timeout", 120)))
-    debug = bool(settings.get("debug", False))
+    settings: dict[str, Any] = raw.get("general", raw.get("general_settings", raw.get("settings", {})))
+    port: int = int(settings.get("port", raw.get("port", 4000)))  # type: ignore[arg-type]
+    timeout: int = int(settings.get("timeout", raw.get("request_timeout", 120)))  # type: ignore[arg-type]
+
+    debug: bool = bool(settings.get("debug", False))
     proxy_api_key: str = str(settings.get("api-key", "")).strip()
 
     return models, port, timeout, debug, proxy_api_key
@@ -171,9 +172,9 @@ def extract_deployment(path: str) -> str | None:
 
     /openai/deployments/deepseek-v4-pro/chat/completions -> deepseek-v4-pro
     """
-    parts = path.strip("/").split("/")
+    parts: list[str] = path.strip("/").split("/")
     try:
-        idx = parts.index("deployments")
+        idx: int = parts.index("deployments")
         if idx + 1 >= len(parts):
             return None
         return parts[idx + 1]
@@ -181,15 +182,15 @@ def extract_deployment(path: str) -> str | None:
         return None
 
 
-def strip_image_url(messages: list[dict]) -> list[dict]:
+def strip_image_url(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Drop every ``image_url`` content part; unwrap single text parts."""
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     for msg in messages:
-        content = msg.get("content")
+        content: Any = msg.get("content")
         if not isinstance(content, list):
             out.append(msg)
             continue
-        text_parts = [
+        text_parts: list[dict[str, Any]] = [
             p for p in content
             if not (isinstance(p, dict) and p.get("type") == "image_url")
         ]
@@ -205,7 +206,7 @@ def strip_image_url(messages: list[dict]) -> list[dict]:
     return out
 
 
-def to_azure_error(message: str, code: str = "500") -> dict:
+def to_azure_error(message: str, code: str = "500") -> dict[str, Any]:
     """Return an Azure-format error dict (JetBrains expects this shape)."""
     return {
         "error": {
@@ -221,7 +222,7 @@ def to_azure_error(message: str, code: str = "500") -> dict:
 #  Azure Model / Deployment definitions
 # ======================================================================
 
-def build_deployment_entry(name: str, cfg: ProxyConfig) -> dict:
+def build_deployment_entry(name: str, cfg: ProxyConfig) -> dict[str, Any]:
     """Build a single Azure-format deployment entry from a ProxyConfig.
 
     Follows the REAL Azure OpenAI API response structure (api-version >= 2024-06-01).
@@ -237,8 +238,8 @@ def build_deployment_entry(name: str, cfg: ProxyConfig) -> dict:
     if cfg.supports_vision:
         caps["vision"] = True
 
-    now = int(time.time())
-    model_name = cfg.display_model_name()
+    now: int = int(time.time())
+    model_name: str = cfg.display_model_name()
 
     entry: dict[str, Any] = {
         # -- Real Azure fields --
@@ -277,7 +278,7 @@ def build_deployment_entry(name: str, cfg: ProxyConfig) -> dict:
     return entry
 
 
-def build_model_entry(name: str, cfg: ProxyConfig) -> dict:
+def build_model_entry(name: str, cfg: ProxyConfig) -> dict[str, Any]:
     """Build an entry for the Azure /openai/models endpoint (model catalog)."""
     caps: dict[str, bool] = {"chat_completion": True}
     if cfg.supports_function_calling:
@@ -289,8 +290,8 @@ def build_model_entry(name: str, cfg: ProxyConfig) -> dict:
     if cfg.supports_vision:
         caps["vision"] = True
 
-    now = int(time.time())
-    model_name = cfg.display_model_name()
+    now: int = int(time.time())
+    model_name: str = cfg.display_model_name()
 
     return {
         "id": model_name,
@@ -323,7 +324,7 @@ def build_model_entry(name: str, cfg: ProxyConfig) -> dict:
 
 async def handle_deployments_list(request: web.Request) -> web.Response:
     """GET /openai/deployments — list all configured deployments."""
-    data_list = [
+    data_list: list[dict[str, Any]] = [
         build_deployment_entry(name, cfg)
         for name, cfg in MODELS.items()
     ]
@@ -335,8 +336,8 @@ async def handle_deployments_list(request: web.Request) -> web.Response:
 
 async def handle_deployment_detail(request: web.Request) -> web.Response:
     """GET /openai/deployments/{name} — single deployment detail."""
-    name = request.match_info.get("name", "")
-    cfg = MODELS.get(name)
+    name: str = request.match_info.get("name", "")
+    cfg: ProxyConfig | None = MODELS.get(name)
     if not cfg:
         return web.json_response(
             to_azure_error(f"Deployment '{name}' not found", code="404"),
@@ -346,14 +347,14 @@ async def handle_deployment_detail(request: web.Request) -> web.Response:
 
 async def handle_deployment_models(request: web.Request) -> web.Response:
     """GET /openai/deployments/{name}/models — model version info for a deployment."""
-    name = request.match_info.get("name", "")
-    cfg = MODELS.get(name)
+    name: str = request.match_info.get("name", "")
+    cfg: ProxyConfig | None = MODELS.get(name)
     if not cfg:
         return web.json_response(
             to_azure_error(f"Deployment '{name}' not found", code="404"),
             status=404)
 
-    entry = build_model_entry(name, cfg)
+    entry: dict[str, Any] = build_model_entry(name, cfg)
     return web.json_response({
         "object": "list",
         "data": [entry],
@@ -364,7 +365,7 @@ async def handle_deployment_models(request: web.Request) -> web.Response:
 
 async def handle_models_list(request: web.Request) -> web.Response:
     """GET /openai/models — list available models (model catalog, Azure format)."""
-    data_list = [
+    data_list: list[dict[str, Any]] = [
         build_model_entry(name, cfg)
         for name, cfg in MODELS.items()
     ]
@@ -378,7 +379,7 @@ async def handle_models_list(request: web.Request) -> web.Response:
 
 async def handle_v1_models_list(request: web.Request) -> web.Response:
     """GET /v1/models — list models in OpenAI format."""
-    data_list = [
+    data_list: list[dict[str, Any]] = [
         {
             "id": name,
             "object": "model",
@@ -403,8 +404,8 @@ async def handle_v1_models_list(request: web.Request) -> web.Response:
 
 async def handle_v1_model_detail(request: web.Request) -> web.Response:
     """GET /v1/models/{name} — single model detail in OpenAI format."""
-    name = request.match_info.get("name", "")
-    cfg = MODELS.get(name)
+    name: str = request.match_info.get("name", "")
+    cfg: ProxyConfig | None = MODELS.get(name)
     if not cfg:
         return web.json_response(
             {"error": {"message": f"Model '{name}' not found", "type": "not_found"}},
@@ -433,8 +434,8 @@ async def handle_deployment_ping(request: web.Request) -> web.Response:
     Azure OpenAI uses this lightweight endpoint to check if a deployment is
     available and responsive before sending chat completion requests.
     """
-    name = request.match_info.get("name", "")
-    cfg = MODELS.get(name)
+    name: str = request.match_info.get("name", "")
+    cfg: ProxyConfig | None = MODELS.get(name)
     if not cfg:
         return web.json_response(
             to_azure_error(f"Deployment '{name}' not found", code="404"),
@@ -464,7 +465,7 @@ async def handle_deployment_ping(request: web.Request) -> web.Response:
     })
 
 
-def override_model_field(payload: dict, display_model_name_val: str) -> dict:
+def override_model_field(payload: dict[str, Any], display_model_name_val: str) -> dict[str, Any]:
     """Override the ``model`` field in a chat completion response dict
     so it matches the Azure model name (base_model if configured, else deployment name)."""
     if isinstance(payload, dict) and "model" in payload:
@@ -476,7 +477,7 @@ async def handle_chat(request: web.Request) -> web.StreamResponse:
     """Handle /openai/deployments/{name}/chat/completions — the main proxy flow."""
 
     # ---- resolve model ----
-    deployment = extract_deployment(request.path)
+    deployment: str | None = extract_deployment(request.path)
     if not deployment:
         return web.json_response(
             to_azure_error(
@@ -485,7 +486,7 @@ async def handle_chat(request: web.Request) -> web.StreamResponse:
                 code="404"),
             status=404)
 
-    cfg = MODELS.get(deployment)
+    cfg: ProxyConfig | None = MODELS.get(deployment)
     if not cfg:
         return web.json_response(
             to_azure_error(f"Unknown deployment: {deployment}", code="404"),
@@ -493,12 +494,12 @@ async def handle_chat(request: web.Request) -> web.StreamResponse:
 
     log("⚡", "{:<6} {}  ->  {}", request.method, request.path_qs, deployment)
 
-    display_model = cfg.display_model_name()
+    display_model: str = cfg.display_model_name()
 
     # ---- parse body ----
     try:
-        body = await request.read()
-        data: dict = json.loads(body) if body else {}
+        body: bytes = await request.read()
+        data: dict[str, Any] = json.loads(body) if body else {}
     except json.JSONDecodeError as e:
         return web.json_response(
             to_azure_error(f"Invalid JSON: {e}", code="400"),
@@ -506,13 +507,13 @@ async def handle_chat(request: web.Request) -> web.StreamResponse:
 
     # ---- strip image_url ----
     if "messages" in data:
-        orig = len(data["messages"])
+        orig: int = len(data["messages"])
         data["messages"] = strip_image_url(data["messages"])
         if (dropped := orig - len(data["messages"])):
             log("🖼️", "dropped {} image-only message(s)", dropped)
 
     # ---- build litellm args ----
-    kwargs = cfg.to_kwargs({"messages": data.get("messages", [])})
+    kwargs: dict[str, Any] = cfg.to_kwargs({"messages": data.get("messages", [])})
     for key in ("temperature", "max_tokens", "top_p",
                 "frequency_penalty", "presence_penalty",
                 "stop", "tools", "tool_choice"):
@@ -547,23 +548,24 @@ async def handle_chat(request: web.Request) -> web.StreamResponse:
             status=500)
 
 
-async def _non_stream_response(kwargs: dict, display_model_name_val: str) -> web.Response:
-    result = await litellm.acompletion(**kwargs)
+async def _non_stream_response(kwargs: dict[str, Any], display_model_name_val: str) -> web.Response:
+    result: Any = await litellm.acompletion(**kwargs)
+    payload: dict[str, Any]
     if hasattr(result, "model_dump"):
-        payload: dict = result.model_dump(warnings=False)
+        payload = result.model_dump(warnings=False)  # type: ignore[union-attr]
     elif hasattr(result, "json"):
-        payload = json.loads(result.json())
+        payload = json.loads(result.json())  # type: ignore[union-attr]
     else:
-        payload = dict(result)
+        payload = dict(result)  # type: ignore[arg-type]
     override_model_field(payload, display_model_name_val)
     # Add Azure-like response headers
-    resp = web.json_response(payload)
+    resp: web.Response = web.json_response(payload)
     resp.headers["x-request-id"] = f"proxy-req-{int(time.time())}"
     return resp
 
 
-async def _stream_response(request: web.Request, kwargs: dict, display_model_name_val: str) -> web.StreamResponse:
-    resp = web.StreamResponse(status=200)
+async def _stream_response(request: web.Request, kwargs: dict[str, Any], display_model_name_val: str) -> web.StreamResponse:
+    resp: web.StreamResponse = web.StreamResponse(status=200)
     resp.headers["Content-Type"] = "text/event-stream"
     resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     resp.headers["Connection"] = "keep-alive"
@@ -577,8 +579,8 @@ async def _stream_response(request: web.Request, kwargs: dict, display_model_nam
 
     await resp.prepare(request)
 
-    stream_ended = False       # set True when the LLM stream completes normally
-    keepalive_interval = 15    # seconds — keep CDN connection alive during LLM "thinking"
+    stream_ended: bool = False       # set True when the LLM stream completes normally
+    keepalive_interval: int = 15     # seconds — keep CDN connection alive during LLM "thinking"
 
     # ── keepalive task: sends SSE comment lines when no data flows ────
     async def _keepalive() -> None:
@@ -593,15 +595,16 @@ async def _stream_response(request: web.Request, kwargs: dict, display_model_nam
                     stream_ended = True
                     break
 
-    keepalive_task = asyncio.ensure_future(_keepalive())
+    keepalive_task: asyncio.Task[None] = asyncio.ensure_future(_keepalive())
 
     try:
-        completion = await litellm.acompletion(stream=True, **kwargs)
+        completion: Any = await litellm.acompletion(stream=True, **kwargs)
         async for chunk in completion:
+            payload: dict[str, Any]
             if hasattr(chunk, "model_dump"):
-                payload = chunk.model_dump(warnings=False)
+                payload = chunk.model_dump(warnings=False)  # type: ignore[union-attr]
             elif hasattr(chunk, "json"):
-                payload = json.loads(chunk.json())
+                payload = json.loads(chunk.json())  # type: ignore[union-attr]
             else:
                 payload = chunk if isinstance(chunk, dict) else {"_raw": str(chunk)}
             override_model_field(payload, display_model_name_val)
@@ -612,7 +615,7 @@ async def _stream_response(request: web.Request, kwargs: dict, display_model_nam
     except Exception:
         log("💥", "stream error:\n{}", traceback.format_exc())
         try:
-            err_payload = json.dumps({"error": str(traceback.format_exc())})
+            err_payload: str = json.dumps({"error": str(traceback.format_exc())})
             await resp.write(f"data: {err_payload}\n\n".encode("utf-8"))
         except ConnectionResetError:
             log("🚫", "stream interrupted while writing error")
@@ -680,11 +683,11 @@ async def handle_catch_all(request: web.Request) -> web.Response:
 @web.middleware
 async def logging_middleware(request: web.Request, handler: Any) -> web.StreamResponse:
     """Log every request and enforce proxy-level api-key if configured."""
-    log_request(request.method, request.path_qs, dict(request.headers))
+    log_request(request.method, request.path_qs, dict(request.headers))  # type: ignore[arg-type]
 
     # -- proxy-level api-key check --
     if PROXY_API_KEY:
-        client_key = request.headers.get("api-key", "")
+        client_key: str = request.headers.get("api-key", "")
         if client_key != PROXY_API_KEY:
             log("🔐", "REJECTED  {}  {}  —  bad or missing api-key", request.method, request.path_qs)
             return web.json_response(
@@ -704,15 +707,15 @@ async def logging_middleware(request: web.Request, handler: Any) -> web.StreamRe
 #  Main application
 # ======================================================================
 
-PROXY_NAME = "copilot-azure-proxy"
+PROXY_NAME: str = "copilot-azure-proxy"
 MODELS: dict[str, ProxyConfig] = {}
-DEFAULT_TIMEOUT = 120
-DEBUG = False
+DEFAULT_TIMEOUT: int = 120
+DEBUG: bool = False
 PROXY_API_KEY: str = ""
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description=f"{PROXY_NAME} -- Azure-to-OpenAI proxy for JetBrains Copilot")
     parser.add_argument("--config", default="config.yaml",
                         help="Path to YAML config (default: config.yaml)")
@@ -720,10 +723,10 @@ def main(argv: list[str] | None = None) -> None:
                         help="Override port (default: from config)")
     parser.add_argument("--host", default="0.0.0.0",
                         help="Bind address (default: 0.0.0.0)")
-    args = parser.parse_args(argv)
+    args: argparse.Namespace = parser.parse_args(argv)
 
     global MODELS, DEFAULT_TIMEOUT, DEBUG, PROXY_API_KEY
-    config_path = Path(args.config)
+    config_path: Path = Path(args.config)
     if not config_path.is_absolute():
         config_path = Path(__file__).parent / config_path
     if not config_path.exists():
@@ -731,7 +734,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     MODELS, config_port, DEFAULT_TIMEOUT, DEBUG, PROXY_API_KEY = load_config(str(config_path))
-    port = args.port or config_port or 4000
+    port: int = args.port or config_port or 4000
 
     if not MODELS:
         print("ERROR: No models defined in config.", file=sys.stderr)
@@ -751,7 +754,7 @@ def main(argv: list[str] | None = None) -> None:
 
     log("🌐", "listen  : http://{}:{}", args.host, port)
 
-    app = web.Application(middlewares=[logging_middleware])
+    app: web.Application = web.Application(middlewares=[logging_middleware])
 
     # -- Azure deployments API --
     app.router.add_route("GET", "/openai/deployments", handle_deployments_list)
