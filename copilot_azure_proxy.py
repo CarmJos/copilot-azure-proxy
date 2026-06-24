@@ -25,7 +25,7 @@ from typing import Any
 
 # ── Suppress Pydantic serializer warnings from litellm ──────────────
 # litellm's ModelResponse sometimes has field count mismatches that trigger
-# PydanticSerializationUnexpectedValue warnings. These are harmless but noisy.
+# PydanticSerializationUnexpectedValue warnings. These are harmless and noisy.
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 import yaml
@@ -565,12 +565,36 @@ async def _non_stream_response(kwargs: dict, display_model_name_val: str) -> web
 async def _stream_response(request: web.Request, kwargs: dict, display_model_name_val: str) -> web.StreamResponse:
     resp = web.StreamResponse(status=200)
     resp.headers["Content-Type"] = "text/event-stream"
-    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     resp.headers["Connection"] = "keep-alive"
     resp.headers["x-request-id"] = f"proxy-req-{int(time.time())}"
+
+    # ── CDN / reverse-proxy compatibility headers ─────────────────────
+    # X-Accel-Buffering: no   → tell Nginx / Tengine (EdgeOne) not to buffer SSE
+    resp.headers["X-Accel-Buffering"] = "no"
+    # Keep client connection alive; CDNs often reset idle HTTP/2 streams
+    resp.headers["Keep-Alive"] = "timeout=300, max=1000"
+
     await resp.prepare(request)
 
-    interrupted = False
+    stream_ended = False       # set True when the LLM stream completes normally
+    keepalive_interval = 15    # seconds — keep CDN connection alive during LLM "thinking"
+
+    # ── keepalive task: sends SSE comment lines when no data flows ────
+    async def _keepalive() -> None:
+        nonlocal stream_ended
+        while not stream_ended:
+            await asyncio.sleep(keepalive_interval)
+            if not stream_ended:
+                try:
+                    # SSE comment line — ignored by client, keeps CDN alive
+                    await resp.write(b": keepalive\n\n")
+                except (ConnectionResetError, ConnectionAbortedError):
+                    stream_ended = True
+                    break
+
+    keepalive_task = asyncio.ensure_future(_keepalive())
+
     try:
         completion = await litellm.acompletion(stream=True, **kwargs)
         async for chunk in completion:
@@ -582,8 +606,8 @@ async def _stream_response(request: web.Request, kwargs: dict, display_model_nam
                 payload = chunk if isinstance(chunk, dict) else {"_raw": str(chunk)}
             override_model_field(payload, display_model_name_val)
             await resp.write(f"data: {json.dumps(payload)}\n\n".encode("utf-8"))
+
     except ConnectionResetError:
-        interrupted = True
         log("🚫", "stream interrupted — client disconnected")
     except Exception:
         log("💥", "stream error:\n{}", traceback.format_exc())
@@ -591,15 +615,24 @@ async def _stream_response(request: web.Request, kwargs: dict, display_model_nam
             err_payload = json.dumps({"error": str(traceback.format_exc())})
             await resp.write(f"data: {err_payload}\n\n".encode("utf-8"))
         except ConnectionResetError:
-            interrupted = True
             log("🚫", "stream interrupted while writing error")
-
-    if not interrupted:
+    else:
+        # Stream finished normally — signal [DONE]
+        stream_ended = True
         try:
             await resp.write(b"data: [DONE]\n\n")
             await resp.write_eof()
         except ConnectionResetError:
             log("🚫", "stream interrupted — client disconnected before [DONE]")
+
+    # ── cleanup: cancel keepalive ────────────────────────────────────
+    stream_ended = True
+    keepalive_task.cancel()
+    try:
+        await keepalive_task
+    except asyncio.CancelledError:
+        pass
+
     return resp
 
 
