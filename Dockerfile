@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM python:3.10-slim
 
 # Create a non-root user
-RUN addgroup --system proxy && adduser --system --ingroup proxy --home /app --shell /sbin/nologin proxy
+RUN addgroup --system app && adduser --system --ingroup app --home /app --shell /sbin/nologin app
 
 WORKDIR /app
 
@@ -32,7 +32,7 @@ COPY config.yaml .
 ENV PATH=/root/.local/bin:$PATH
 
 # Switch to non-root user
-USER proxy
+USER app
 
 # Default port (overridable via --port or env var)
 EXPOSE 4000
