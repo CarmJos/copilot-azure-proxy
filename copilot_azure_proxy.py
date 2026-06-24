@@ -22,6 +22,7 @@ import traceback
 import warnings
 from pathlib import Path
 from typing import Any
+import datetime
 
 # ── Suppress Pydantic serializer warnings from litellm ──────────────
 # litellm's ModelResponse sometimes has field count mismatches that trigger
@@ -42,7 +43,8 @@ _LOG_BUF: list[str] = []
 
 
 def log(emoji: str, msg: str, *args: object) -> None:
-    line: str = f" {emoji} | {msg.format(*args)}"
+    now_str: str = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    line: str = f"| {now_str} | {emoji} | {msg.format(*args)}"
     print(line, flush=True)
     _LOG_BUF.append(line)
     if len(_LOG_BUF) > 5000:
