@@ -3,6 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-GPL%20v3-green)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue?logo=docker)
 
 _**"Use any OpenAI-compatible model with JetBrains GitHub Copilot."**_
 
@@ -94,6 +95,14 @@ chmod +x run.sh
 ./run.sh
 ```
 
+or use **Docker**:
+
+```shell
+docker run -d -p 4000:4000 --name copilot-azure-proxy \
+  -v "./config.yaml:/app/config.yaml" \
+  ghcr.io/carmjos/copilot-azure-proxy
+```
+
 The proxy starts at `http://localhost:4000`.
 
 ### 5. Configure Your JetBrains IDE
@@ -137,7 +146,7 @@ After adding, the model will appear in your Copilot Chat model selector.
 | `models[].litellm_params.base_model`       | str  | Optional — Azure model name to impersonate               |
 | `models[].litellm_params.max_input_tokens` | int  | Reported context window size                             |
 
-All `litellm_params` fields support Litellm's full parameter set (`temperature`, `supports_vision`,
+All `litellm_params` fields support LiteLLM's full parameter set (`temperature`, `supports_vision`,
 `supports_function_calling`, `supports_reasoning`, `supports_tool_choice`, etc.).
 
 ### CLI Arguments
